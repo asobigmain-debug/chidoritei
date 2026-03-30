@@ -304,21 +304,36 @@ var TITLE_KEY = 'netatyou_v2_title';
 })();
 
 /* ============================================================
-   GAS API 呼び出し（fetch版）
+   GAS API 呼び出し（JSONP版 - iOS Safari対応）
    ============================================================ */
-async function gasGet(action, params) {
-  params = params || {};
-  var url = new URL(GAS_URL);
-  url.searchParams.set('action', action);
-  Object.keys(params).forEach(function(k){ url.searchParams.set(k, String(params[k])); });
-  var res = await fetch(url.toString(), {redirect:'follow'});
-  var text = await res.text();
-  try { return JSON.parse(text); } catch(e) { return {_raw: text}; }
+function gasGet(action, params) {
+  return new Promise(function(resolve) {
+    params = params || {};
+    var cbName = '_gcb' + Date.now() + Math.floor(Math.random()*1000);
+    var qs = 'action=' + encodeURIComponent(action) + '&callback=' + cbName;
+    Object.keys(params).forEach(function(k){
+      qs += '&' + encodeURIComponent(k) + '=' + encodeURIComponent(String(params[k]));
+    });
+    var url = GAS_URL + '?' + qs;
+    window[cbName] = function(data){
+      delete window[cbName];
+      if(s && s.parentNode) s.parentNode.removeChild(s);
+      resolve(data);
+    };
+    var s = document.createElement('script');
+    s.src = url;
+    s.onerror = function(){
+      delete window[cbName];
+      if(s && s.parentNode) s.parentNode.removeChild(s);
+      resolve({error: 'network error'});
+    };
+    document.head.appendChild(s);
+  });
 }
 
 /* チャンク送信（インポート用：大きいファイル対応） */
 async function gasSendChunks_(key, data) {
-  var SZ=3500, count=0;
+  var SZ=1500, count=0;
   for(var i=0; i<data.length; i+=SZ, count++){
     var r = await gasGet('saveTemp', {key:key, part:data.slice(i,i+SZ), index:count});
     if(r && r.error) return {error: r.error};
