@@ -315,7 +315,18 @@ function gasGet(action, params) {
       qs += '&' + encodeURIComponent(k) + '=' + encodeURIComponent(String(params[k]));
     });
     var url = GAS_URL + '?' + qs;
+    var done = false;
+    var timer = setTimeout(function(){
+      if(done) return;
+      done = true;
+      delete window[cbName];
+      if(s && s.parentNode) s.parentNode.removeChild(s);
+      resolve({error: 'timeout'});
+    }, 15000);
     window[cbName] = function(data){
+      if(done) return;
+      done = true;
+      clearTimeout(timer);
       delete window[cbName];
       if(s && s.parentNode) s.parentNode.removeChild(s);
       resolve(data);
@@ -323,9 +334,12 @@ function gasGet(action, params) {
     var s = document.createElement('script');
     s.src = url;
     s.onerror = function(){
+      if(done) return;
+      done = true;
+      clearTimeout(timer);
       delete window[cbName];
       if(s && s.parentNode) s.parentNode.removeChild(s);
-      resolve({error: 'network error'});
+      resolve({error: 'script load error'});
     };
     document.head.appendChild(s);
   });
@@ -446,7 +460,7 @@ window.addEventListener('load', async function(){
 
   } catch(e) {
     document.getElementById('rec-list').innerHTML =
-      '<div class="es"><div class="es-t">読み込みエラー<br>'+escH(String(e.message||e))+'</div></div>';
+      '<div class="es"><div class="es-i">⚠️</div><div class="es-t">読み込みエラー<br>'+escH(String(e.message||e))+'<br><br>ページを再読み込みしてください</div></div>';
   }
 });
 
